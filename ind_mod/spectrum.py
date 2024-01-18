@@ -13,12 +13,13 @@ export, __all__ = im.exporter()
 
 @export
 class Spectrum():
-    def __init__(self, root_path=None, 
-                 mode='Veto50keV', variable='CrystalEnergySmear0-20'):
+    def __init__(self, spectrum_file_folder=None, root_type=True,
+                 component=None, mode='Veto50keV', variable='CrystalEnergySmear0-20'):
         try:
-            spectrum = ur.open(f'{root_path}:{mode};1')[f'{variable};1']
+            assert root_type
+            spectrum = ur.open(f'{spectrum_file_folder}/{component}.root:{mode};1')[f'{variable};1']
         except Exception:
-            raise RuntimeError("Could not find specified variable for specified mode in specified file")
+            raise RuntimeError('Error extracting requested information from file')
 
         self.energy_edges = spectrum.to_numpy()[1]
         spectrum_values = spectrum.to_numpy()[0]
