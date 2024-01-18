@@ -20,7 +20,8 @@ class BackgroundModel():
         
         self.background_model = dict()
 
-        for (background_component, _) in config.items('components'):
+        for (background_component, scale_factor) in config.items('component_scalings'):
             self.background_model[background_component] = im.Spectrum(spectrum_file_folder=spectrum_file_folder,
-                                                                      component=background_component)
+                                                                      component=background_component,
+                                                                      scale_factor=float(scale_factor))
         

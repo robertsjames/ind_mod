@@ -14,7 +14,8 @@ export, __all__ = im.exporter()
 @export
 class Spectrum():
     def __init__(self, spectrum_file_folder=None, root_type=True,
-                 component=None, mode='Veto50keV', variable='CrystalEnergySmear0-20'):
+                 component=None, mode='Veto50keV', variable='CrystalEnergySmear0-20',
+                 scale_factor=1.):
         try:
             assert root_type
             spectrum = ur.open(f'{spectrum_file_folder}/{component}.root:{mode};1')[f'{variable};1']
@@ -22,12 +23,9 @@ class Spectrum():
             raise RuntimeError('Error extracting requested information from file')
 
         self.energy_edges = spectrum.to_numpy()[1]
-        spectrum_values = spectrum.to_numpy()[0]
+        spectrum_values = spectrum.to_numpy()[0] * scale_factor
 
         self.hist = mh.Histdd.from_histogram(histogram=spectrum_values, bin_edges=[self.energy_edges])
-
-        self.hist.bin_edges
-        self.hist.histogram
 
     def sample(self, energy_min=None, energy_max=None):
         if energy_min is None:
