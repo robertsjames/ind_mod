@@ -60,8 +60,13 @@ class BackgroundModel():
             weights.append(cycle_integral * self.exposures[cycle])
         weights = weights / np.sum(weights)
 
+        t_start_global = self.annual_cycles[list(self.annual_cycles)[0]][0].value
+        t_end_global = self.annual_cycles[list(self.annual_cycles)[-1]][1].value
+        t_total = t_end_global - t_start_global
+        decay_factor = time_constant_ns / t_total * (1. - np.exp(-t_total / time_constant_ns))
+
         try:
-            df_sample = self.background_model[component_name].sample()
+            df_sample = self.background_model[component_name].sample(decay_factor=decay_factor)
         except Exception:
             raise RuntimeError(f'Component not found in background model: {component_name}')
 

@@ -27,13 +27,14 @@ class Spectrum():
 
         self.hist = mh.Histdd.from_histogram(histogram=spectrum_values, bin_edges=[self.energy_edges])
 
-    def sample(self, energy_min=None, energy_max=None):
+    def sample(self, energy_min=None, energy_max=None,
+               decay_factor=1.):
         if energy_min is None:
             energy_min = self.energy_edges[0]
         if energy_max is None:
             energy_max = self.energy_edges[-1]
         
-        sliced_hist = self.hist.slice(start=energy_min, stop=energy_max)
+        sliced_hist = self.hist.slice(start=energy_min, stop=energy_max) * decay_factor
 
         sliced_hist_ebp = sliced_hist * sliced_hist.bin_volumes()
         mu = sliced_hist_ebp.n
