@@ -15,7 +15,7 @@ export, __all__ = im.exporter()
 class Spectrum():
     def __init__(self, spectrum_file_folder=None, root_type=True,
                  component=None, mode='Veto50keV', variable='CrystalEnergySmear0-20',
-                 scale_factor=1.):
+                 scale_factor=1., exposure_factor=1.):
         assert root_type, 'Currently only support reading spectra from .root files'
         try:
             spectrum = ur.open(f'{spectrum_file_folder}/{component}.root:{mode};1')[f'{variable};1']
@@ -23,7 +23,7 @@ class Spectrum():
             raise RuntimeError('Error extracting requested information from file')
 
         self.energy_edges = spectrum.to_numpy()[1]
-        spectrum_values = spectrum.to_numpy()[0] * scale_factor
+        spectrum_values = spectrum.to_numpy()[0] * scale_factor * exposure_factor
 
         self.hist = mh.Histdd.from_histogram(histogram=spectrum_values, bin_edges=[self.energy_edges])
 
@@ -39,8 +39,8 @@ class Spectrum():
         mu = sliced_hist_ebp.n
         n_sample = np.random.poisson(mu)
 
-        data_sample = sliced_hist.get_random(n_sample)
-        df_sample = pd.DataFrame(dict(zip(['energy'], data_sample.T)))
+        energies_sample = sliced_hist.get_random(n_sample)
+        df_sample = pd.DataFrame(dict(zip(['energy'], energies_sample.T)))
         
         return df_sample
         
