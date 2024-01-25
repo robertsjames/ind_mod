@@ -27,18 +27,34 @@ class Spectrum():
 
         self.hist = mh.Histdd.from_histogram(histogram=spectrum_values, bin_edges=[self.energy_edges])
 
-    def sample(self, energy_min=None, energy_max=None,
+    def get_mu(self, energy_min=None, energy_max=None,
                decay_factor=1.):
         if energy_min is None:
             energy_min = self.energy_edges[0]
         if energy_max is None:
             energy_max = self.energy_edges[-1]
-        
-        sliced_hist = self.hist.slice(start=energy_min, stop=energy_max) * decay_factor
 
+        sliced_hist = self.hist.slice(start=energy_min, stop=energy_max) * decay_factor
         sliced_hist_ebp = sliced_hist * sliced_hist.bin_volumes()
         mu = sliced_hist_ebp.n
-        n_sample = np.random.poisson(mu)
+
+        return mu
+
+    def sample(self, energy_min=None, energy_max=None,
+               decay_factor=1., for_pdf=False, pdf_stats=int(1e6)):
+        if energy_min is None:
+            energy_min = self.energy_edges[0]
+        if energy_max is None:
+            energy_max = self.energy_edges[-1]
+
+        sliced_hist = self.hist.slice(start=energy_min, stop=energy_max) * decay_factor
+
+        if for_pdf is False:
+            mu = self.get_mu(energy_min=energy_min, energy_max=energy_max,
+                             decay_factor=decay_factor)
+            n_sample = np.random.poisson(mu)
+        else:
+            n_sample = pdf_stats
 
         energies_sample = sliced_hist.get_random(n_sample)
         df_sample = pd.DataFrame(dict(zip(['energy'], energies_sample.T)))

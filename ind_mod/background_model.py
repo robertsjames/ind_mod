@@ -9,6 +9,7 @@ import configparser
 
 import numpy as np
 import pandas as pd
+import multihist as mh
 
 from scipy import stats
 
@@ -46,8 +47,8 @@ class BackgroundModel():
 
         assert self.annual_cycles.keys() == self.exposures.keys(), \
             'Must specify an exposure for each annual cycle'
-
-    def sample_component(self, component_name):
+        
+    def get_temporal_info(self, component_name):
         try:
             half_life_years = self.config.getfloat('half_life_years', component_name)
         except Exception:
@@ -59,6 +60,11 @@ class BackgroundModel():
         t_total = t_end_global - t_start_global
         decay_factor = time_constant_ns / t_total * (1. - np.exp(-t_total / time_constant_ns))
 
+        return t_start_global, time_constant_ns, decay_factor
+
+    def sample_component(self, component_name, for_pdf=False, pdf_stats=int(1e6)):
+        t_start_global, time_constant_ns, decay_factor = self.get_temporal_info(component_name)
+
         weights = []
         for cycle, times in self.annual_cycles.items():
             cycle_integral = np.exp(-(times[0].value - t_start_global) / time_constant_ns) - \
@@ -67,7 +73,8 @@ class BackgroundModel():
         weights = weights / np.sum(weights)
 
         try:
-            df_sample = self.background_model[component_name].sample(decay_factor=decay_factor)
+            df_sample = self.background_model[component_name].sample(decay_factor=decay_factor,
+                                                                     for_pdf=for_pdf, pdf_stats=pdf_stats)
         except Exception:
             raise RuntimeError(f'Component not found in background model: {component_name}')
 
@@ -97,4 +104,40 @@ class BackgroundModel():
         df_sample_full = pd.concat(df_sample_full_list, ignore_index=True)
 
         return df_sample_full
+
+    def get_model_pdfs(self, observables=None, pdf_stats=int(1e6)):
+        pdf_hists = dict()
+        mus_sum = dict()
+
+        for observable in observables.keys():
+            pdf_hists[observable] = None
+            mus_sum[observable] = 0.
+
+        for background_component in self.background_model.keys():
+            df_sample_component = self.sample_component(background_component,
+                                                        for_pdf=True, pdf_stats=pdf_stats)
+
+            _, _, decay_factor = self.get_temporal_info(background_component)
+            mu = self.background_model[background_component].get_mu(decay_factor=decay_factor)
+
+            for observable, bins in observables.items():
+                assert observable in df_sample_component.columns, \
+                    f'Could not find observable {observable} in simulated data'
+
+                if pdf_hists[observable] is None:
+                    hist = mh.Hist1d(df_sample_component[observable], bins=bins)
+                    hist.histogram = hist.histogram * mu
+                    pdf_hists[observable] = hist
+                else:
+                    hist = mh.Hist1d(df_sample_component[observable], bins=bins)
+                    hist.histogram = hist.histogram * mu
+                    pdf_hists[observable].histogram += hist.histogram
+
+                mus_sum[observable] += mu
+
+        for observable, pdf_hist in pdf_hists.items():
+            pdf_hist = pdf_hist / pdf_hist.n
+            pdf_hists[observable] = pdf_hist * mus_sum[observable]
+
+        return pdf_hists
         
