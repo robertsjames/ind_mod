@@ -9,7 +9,6 @@ import configparser
 
 import numpy as np
 import pandas as pd
-import multihist as mh
 
 from scipy import stats
 
@@ -62,7 +61,7 @@ class BackgroundModel():
 
         return t_start_global, time_constant_ns, decay_factor
 
-    def sample_component(self, component_name, for_pdf=False, pdf_stats=int(1e6)):
+    def sample_component(self, component_name):
         t_start_global, time_constant_ns, decay_factor = self.get_temporal_info(component_name)
 
         weights = []
@@ -73,8 +72,7 @@ class BackgroundModel():
         weights = weights / np.sum(weights)
 
         try:
-            df_sample = self.background_model[component_name].sample(decay_factor=decay_factor,
-                                                                     for_pdf=for_pdf, pdf_stats=pdf_stats)
+            df_sample = self.background_model[component_name].sample(decay_factor=decay_factor)
         except Exception:
             raise RuntimeError(f'Component not found in background model: {component_name}')
 
