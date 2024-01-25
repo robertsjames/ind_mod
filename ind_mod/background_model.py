@@ -81,14 +81,17 @@ class BackgroundModel():
         cycles_sample = np.random.choice(list(self.annual_cycles.keys()), size=len(df_sample), p=weights)
 
         times_sample = []
+        annual_cycles = []
         for cycle, times in self.annual_cycles.items():
             n_sample_cycle = len(cycles_sample[cycles_sample == cycle])
             b = (times[1].value - times[0].value) / time_constant_ns
             sampled_times = stats.truncexpon.rvs(b, loc=times[0].value,
                                                  scale=time_constant_ns, size=n_sample_cycle)
             times_sample.extend(sampled_times)
+            annual_cycles.extend([cycle] * len(sampled_times))
 
         df_sample['time'] = times_sample
+        df_sample['annual_cycle'] = annual_cycles
 
         return df_sample
 
@@ -104,40 +107,4 @@ class BackgroundModel():
         df_sample_full = pd.concat(df_sample_full_list, ignore_index=True)
 
         return df_sample_full
-
-    def get_model_pdfs(self, observables=None, pdf_stats=int(1e6)):
-        pdf_hists = dict()
-        mus_sum = dict()
-
-        for observable in observables.keys():
-            pdf_hists[observable] = None
-            mus_sum[observable] = 0.
-
-        for background_component in self.background_model.keys():
-            df_sample_component = self.sample_component(background_component,
-                                                        for_pdf=True, pdf_stats=pdf_stats)
-
-            _, _, decay_factor = self.get_temporal_info(background_component)
-            mu = self.background_model[background_component].get_mu(decay_factor=decay_factor)
-
-            for observable, bins in observables.items():
-                assert observable in df_sample_component.columns, \
-                    f'Could not find observable {observable} in simulated data'
-
-                if pdf_hists[observable] is None:
-                    hist = mh.Hist1d(df_sample_component[observable], bins=bins)
-                    hist.histogram = hist.histogram * mu
-                    pdf_hists[observable] = hist
-                else:
-                    hist = mh.Hist1d(df_sample_component[observable], bins=bins)
-                    hist.histogram = hist.histogram * mu
-                    pdf_hists[observable].histogram += hist.histogram
-
-                mus_sum[observable] += mu
-
-        for observable, pdf_hist in pdf_hists.items():
-            pdf_hist = pdf_hist / pdf_hist.n
-            pdf_hists[observable] = pdf_hist * mus_sum[observable]
-
-        return pdf_hists
         

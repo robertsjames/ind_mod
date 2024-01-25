@@ -41,7 +41,7 @@ class Spectrum():
         return mu
 
     def sample(self, energy_min=None, energy_max=None,
-               decay_factor=1., for_pdf=False, pdf_stats=int(1e6)):
+               decay_factor=1.):
         if energy_min is None:
             energy_min = self.energy_edges[0]
         if energy_max is None:
@@ -49,12 +49,9 @@ class Spectrum():
 
         sliced_hist = self.hist.slice(start=energy_min, stop=energy_max) * decay_factor
 
-        if for_pdf is False:
-            mu = self.get_mu(energy_min=energy_min, energy_max=energy_max,
-                             decay_factor=decay_factor)
-            n_sample = np.random.poisson(mu)
-        else:
-            n_sample = pdf_stats
+        mu = self.get_mu(energy_min=energy_min, energy_max=energy_max,
+                            decay_factor=decay_factor)
+        n_sample = np.random.poisson(mu)
 
         energies_sample = sliced_hist.get_random(n_sample)
         df_sample = pd.DataFrame(dict(zip(['energy'], energies_sample.T)))
