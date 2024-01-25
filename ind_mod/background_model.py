@@ -66,8 +66,9 @@ class BackgroundModel():
 
         weights = []
         for cycle, times in self.annual_cycles.items():
-            cycle_integral = np.exp(-(times[0].value - t_start_global) / time_constant_ns) - \
-                np.exp(-(times[1].value - t_start_global) / time_constant_ns)
+            t_cycle = times[1].value - times[0].value
+            cycle_integral = (np.exp(-(times[0].value - t_start_global) / time_constant_ns) - \
+                np.exp(-(times[1].value - t_start_global) / time_constant_ns)) / t_cycle
             weights.append(cycle_integral * self.exposures[cycle])
         weights = weights / np.sum(weights)
 
