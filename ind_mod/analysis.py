@@ -102,3 +102,14 @@ class Analysis():
         rate_hist, residuals, errors = hist_helper.get_rate_residuals()
 
         return rate_hist, residuals, errors
+
+    def do_chisq_fit(self, rate_hist, residuals, errors,
+                     model_fn, guess):
+        time_bin_edges = rate_hist.bin_edges
+        time_bin_centers = 0.5 * (time_bin_edges[1:] + time_bin_edges[:-1])
+
+        chisq_min_1d = ChisqMinimization1D(time_bin_centers, residuals, errors, model_fn)
+
+        fit = chisq_min_1d.minimise_chisq(guess=guess).x
+
+        return fit
