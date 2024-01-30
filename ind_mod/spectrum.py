@@ -13,8 +13,8 @@ export, __all__ = im.exporter()
 
 @export
 class Spectrum():
-    def __init__(self, spectrum_file_folder=None, root_type=True,
-                 component=None, mode='Veto50keV', variable='CrystalEnergySmear0-20',
+    def __init__(self, spectrum_file_folder, component,
+                 root_type=True, mode='Veto50keV', variable='CrystalEnergySmear0-20',
                  scale_factor=1., exposure_factor=1.,
                  energy_min=2., energy_max=6.):
         self.energy_min = energy_min

@@ -16,7 +16,7 @@ export, __all__ = im.exporter()
 
 @export
 class BackgroundModel():
-    def __init__(self, spectrum_file_folder=None, model_file=None,
+    def __init__(self, spectrum_file_folder, model_file,
                  energy_min=2., energy_max=6.):
         self.energy_min = energy_min
         self.energy_max = energy_max
