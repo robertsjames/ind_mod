@@ -42,7 +42,9 @@ class RateResidualsHelper():
             average_rate_this_cycle = np.mean(all_rates[-1])
             all_residuals.append(all_rates[-1] - average_rate_this_cycle)
 
-            all_errors.append(np.sqrt(rate_this_cycle.histogram)  / rate_normalisation)
+            poisson_errors = np.sqrt(rate_this_cycle.histogram)  / rate_normalisation
+            error_on_mean = np.sqrt(sum(poisson_errors**2)) / len(poisson_errors) * np.ones_like(poisson_errors)
+            all_errors.append(np.sqrt(poisson_errors**2 + error_on_mean**2))
 
             if first_annual_cycle:
                 all_time_bins.append(rate_this_cycle.bin_edges)
