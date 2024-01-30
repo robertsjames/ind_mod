@@ -15,7 +15,11 @@ export, __all__ = im.exporter()
 class Spectrum():
     def __init__(self, spectrum_file_folder=None, root_type=True,
                  component=None, mode='Veto50keV', variable='CrystalEnergySmear0-20',
-                 scale_factor=1., exposure_factor=1.):
+                 scale_factor=1., exposure_factor=1.,
+                 energy_min=2., energy_max=6.):
+        self.energy_min = energy_min
+        self.energy_max = energy_max
+        
         assert root_type, 'Currently only support reading spectra from .root files'
         try:
             spectrum = ur.open(f'{spectrum_file_folder}/{component}.root:{mode};1')[f'{variable};1']
@@ -27,30 +31,17 @@ class Spectrum():
 
         self.hist = mh.Histdd.from_histogram(histogram=spectrum_values, bin_edges=[self.energy_edges])
 
-    def get_mu(self, energy_min=None, energy_max=None,
-               decay_factor=1.):
-        if energy_min is None:
-            energy_min = self.energy_edges[0]
-        if energy_max is None:
-            energy_max = self.energy_edges[-1]
-
-        sliced_hist = self.hist.slice(start=energy_min, stop=energy_max) * decay_factor
+    def get_mu(self, decay_factor=1.):
+        sliced_hist = self.hist.slice(start=self.energy_min, stop=self.energy_max) * decay_factor
         sliced_hist_ebp = sliced_hist * sliced_hist.bin_volumes()
         mu = sliced_hist_ebp.n
 
         return mu
 
-    def sample(self, energy_min=None, energy_max=None,
-               decay_factor=1.):
-        if energy_min is None:
-            energy_min = self.energy_edges[0]
-        if energy_max is None:
-            energy_max = self.energy_edges[-1]
+    def sample(self, decay_factor=1.):
+        sliced_hist = self.hist.slice(start=self.energy_min, stop=self.energy_max) * decay_factor
 
-        sliced_hist = self.hist.slice(start=energy_min, stop=energy_max) * decay_factor
-
-        mu = self.get_mu(energy_min=energy_min, energy_max=energy_max,
-                            decay_factor=decay_factor)
+        mu = self.get_mu(decay_factor=decay_factor)
         n_sample = np.random.poisson(mu)
 
         energies_sample = sliced_hist.get_random(n_sample)

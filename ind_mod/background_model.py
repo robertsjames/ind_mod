@@ -16,7 +16,11 @@ export, __all__ = im.exporter()
 
 @export
 class BackgroundModel():
-    def __init__(self, spectrum_file_folder=None, model_file=None):
+    def __init__(self, spectrum_file_folder=None, model_file=None,
+                 energy_min=2., energy_max=6.):
+        self.energy_min = energy_min
+        self.energy_max = energy_max
+        
         try:
             self.config = configparser.ConfigParser(inline_comment_prefixes=';')
             self.config.optionxform = str
@@ -42,7 +46,9 @@ class BackgroundModel():
             self.background_model[background_component] = im.Spectrum(spectrum_file_folder=spectrum_file_folder,
                                                                       component=background_component,
                                                                       scale_factor=float(scale_factor),
-                                                                      exposure_factor=total_exposure)
+                                                                      exposure_factor=total_exposure,
+                                                                      energy_min=self.energy_min,
+                                                                      energy_max=self.energy_max)
 
         assert self.annual_cycles.keys() == self.exposures.keys(), \
             'Must specify an exposure for each annual cycle'
@@ -64,6 +70,11 @@ class BackgroundModel():
     def sample_component(self, component_name):
         t_start_global, time_constant_ns, decay_factor = self.get_temporal_info(component_name)
 
+        try:
+            df_sample = self.background_model[component_name].sample(decay_factor=decay_factor)
+        except Exception:
+            raise RuntimeError(f'Component not found in background model: {component_name}')
+
         weights = []
         for cycle, times in self.annual_cycles.items():
             t_cycle = times[1].value - times[0].value
@@ -71,11 +82,6 @@ class BackgroundModel():
                 np.exp(-(times[1].value - t_start_global) / time_constant_ns)) / t_cycle
             weights.append(cycle_integral * self.exposures[cycle])
         weights = weights / np.sum(weights)
-
-        try:
-            df_sample = self.background_model[component_name].sample(decay_factor=decay_factor)
-        except Exception:
-            raise RuntimeError(f'Component not found in background model: {component_name}')
 
         cycles_sample = np.random.choice(list(self.annual_cycles.keys()), size=len(df_sample), p=weights)
 
