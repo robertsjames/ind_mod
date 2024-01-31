@@ -6,12 +6,15 @@ import ind_mod as im
 
 import numpy as np
 import multihist as mh
+import pandas as pd
 
 from scipy.optimize import minimize
 
 export, __all__ = im.exporter()
 
-class RateResidualsHelper():
+ns_to_months = 1. / 1e9 / 3600. / 24. / (365.25 / 12.)
+
+class RatesResidualsHelper():
     def __init__(self, data,
                  annual_cycles, exposures,
                  bins_per_cycle=10,
@@ -23,8 +26,7 @@ class RateResidualsHelper():
         self.energy_min = energy_min
         self.energy_max = energy_max
 
-    def get_cycle_rate_average_errors(self, annual_cycle):
-        ns_to_months = 1. / 1e9 / 3600. / 24. / (365.25 / 12.)
+    def get_cycle_rates_average_errors(self, annual_cycle):
 
         cycle_edges = (self.annual_cycles[annual_cycle][0].value * ns_to_months,
                        self.annual_cycles[annual_cycle][1].value * ns_to_months)
@@ -33,22 +35,22 @@ class RateResidualsHelper():
 
         times = data_this_cycle['time'].values * ns_to_months
 
-        rate_this_cycle = mh.Hist1d(times, bins=self.bins_per_cycle)
-        time_bins = rate_this_cycle.bin_edges
+        rates_this_cycle = mh.Hist1d(times, bins=self.bins_per_cycle)
+        time_bins = rates_this_cycle.bin_edges
 
         rate_normalisation = (self.exposures[annual_cycle] / self.bins_per_cycle) * \
             (self.energy_max - self.energy_min)
 
-        poisson_errors = np.sqrt(rate_this_cycle.histogram)  / rate_normalisation
+        poisson_errors = np.sqrt(rates_this_cycle.histogram)  / rate_normalisation
         error_on_mean = np.sqrt(sum(poisson_errors**2)) / len(poisson_errors) * np.ones_like(poisson_errors)
         errors = np.sqrt(poisson_errors**2 + error_on_mean**2)
 
-        rate = rate_this_cycle.histogram / rate_normalisation
-        average_rate = np.mean(rate)
+        rates = rates_this_cycle.histogram / rate_normalisation
+        average_rate = np.mean(rates)
 
-        return cycle_edges, time_bins, rate, average_rate, errors
+        return cycle_edges, time_bins, rates, average_rate, errors
 
-    def get_rate_and_residuals(self):
+    def get_rates_and_residuals(self):
         all_time_bins = []
         all_rates = []
         all_residuals = []
@@ -57,10 +59,10 @@ class RateResidualsHelper():
         first_annual_cycle = True
 
         for annual_cycle in self.annual_cycles.keys():
-            _, time_bins, rate, average_rate, errors = self.get_cycle_rate_average_errors(annual_cycle)
+            _, time_bins, rates, average_rate, errors = self.get_cycle_rates_average_errors(annual_cycle)
 
-            all_rates.append(rate)
-            all_residuals.append(rate - average_rate)
+            all_rates.append(rates)
+            all_residuals.append(rates - average_rate)
             all_errors.append(errors)
 
             if first_annual_cycle:
@@ -85,7 +87,7 @@ class RateResidualsHelper():
         first_annual_cycle = True
 
         for annual_cycle in self.annual_cycles.keys():
-            cycle_edges, _, _, average_rate, _ = self.get_cycle_rate_average_errors(annual_cycle)
+            cycle_edges, _, _, average_rate, _ = self.get_cycle_rates_average_errors(annual_cycle)
 
             all_average_rates.append(average_rate)
 
@@ -133,16 +135,16 @@ class Analysis():
 
         return toy_data
 
-    def get_rate_and_residuals(self, toy_data, bins_per_cycle=10):
+    def get_rates_and_residuals(self, toy_data, bins_per_cycle=10):
         annual_cycles = self.bg_model.annual_cycles
         exposures = self.bg_model.exposures
 
-        hist_helper = RateResidualsHelper(data=toy_data,
-                                          annual_cycles=annual_cycles,
-                                          exposures=exposures,
-                                          bins_per_cycle=bins_per_cycle,
-                                          energy_min=self.energy_min, energy_max=self.energy_max)
-        rate_hist, residuals, errors = hist_helper.get_rate_and_residuals()
+        hist_helper = RatesResidualsHelper(data=toy_data,
+                                           annual_cycles=annual_cycles,
+                                           exposures=exposures,
+                                           bins_per_cycle=bins_per_cycle,
+                                           energy_min=self.energy_min, energy_max=self.energy_max)
+        rate_hist, residuals, errors = hist_helper.get_rates_and_residuals()
         time_bin_edges = rate_hist.bin_edges
         time_bin_centers = 0.5 * (time_bin_edges[1:] + time_bin_edges[:-1])
 
@@ -152,14 +154,24 @@ class Analysis():
         annual_cycles = self.bg_model.annual_cycles
         exposures = self.bg_model.exposures
 
-        hist_helper = RateResidualsHelper(data=toy_data,
-                                          annual_cycles=annual_cycles,
-                                          exposures=exposures,
-                                          bins_per_cycle=bins_per_cycle,
-                                          energy_min=self.energy_min, energy_max=self.energy_max)
+        hist_helper = RatesResidualsHelper(data=toy_data,
+                                           annual_cycles=annual_cycles,
+                                           exposures=exposures,
+                                           bins_per_cycle=bins_per_cycle,
+                                           energy_min=self.energy_min, energy_max=self.energy_max)
         cycle_endpoints, average_rates = hist_helper.get_cycles_and_average_rates()
 
         return cycle_endpoints, average_rates
+
+    def get_phase_offset(self, start_month='06', start_day='02'):
+        t_start_global = self.bg_model.annual_cycles[list(self.bg_model.annual_cycles)[0]][0]
+        t_start_global_year = t_start_global.year
+
+        offset_from = pd.to_datetime(f'{t_start_global_year}-{start_month}-{start_day}T00:00:00')
+
+        phase_offset = (t_start_global.value - offset_from.value) * ns_to_months
+
+        return phase_offset
 
     def do_chisq_fit(self, time_bin_centers, residuals, errors,
                      model_fn, guess):
