@@ -172,7 +172,7 @@ class ChisqMinimization1D:
             method='Nelder-Mead')
 
 
-class BinnedPoissonMaximumLikelihood:
+class BinnedPoissonML:
     def __init__(self, bin_values, scalings):
         self.bin_values = bin_values
         self.scalings = scalings
