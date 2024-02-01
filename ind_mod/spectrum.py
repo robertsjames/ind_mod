@@ -4,6 +4,8 @@
 
 import ind_mod as im
 
+import sys, os
+
 import numpy as np
 import pandas as pd
 import uproot as ur
@@ -13,7 +15,7 @@ export, __all__ = im.exporter()
 
 @export
 class Spectrum():
-    def __init__(self, spectrum_file_folder, component,
+    def __init__(self, component,
                  root_type=True, mode='Veto50keV', variable='CrystalEnergySmear0-20',
                  scale_factor=1., exposure_factor=1.,
                  energy_min=2., energy_max=6.):
@@ -22,7 +24,8 @@ class Spectrum():
         
         assert root_type, 'Currently only support reading spectra from .root files'
         try:
-            spectrum = ur.open(f'{spectrum_file_folder}/{component}.root:{mode};1')[f'{variable};1']
+            spectra_folder = os.path.join(os.path.dirname(__file__), f'data/background_sim_spectra')
+            spectrum = ur.open(f'{spectra_folder}/{component}.root:{mode};1')[f'{variable};1']
         except Exception:
             raise RuntimeError('Error extracting requested information from file')
 

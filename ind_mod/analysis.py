@@ -183,11 +183,11 @@ class BinnedPoissonML:
 
 @export
 class Analysis():
-    def __init__(self, spectrum_file_folder, model_file,
+    def __init__(self, model_file,
                  energy_min=2., energy_max=6.):
         self.energy_min = energy_min
         self.energy_max = energy_max
-        self.bg_model = im.BackgroundModel(spectrum_file_folder=spectrum_file_folder, model_file=model_file,
+        self.bg_model = im.BackgroundModel(model_file=model_file,
                                            energy_min=self.energy_min, energy_max=self.energy_max)
 
 

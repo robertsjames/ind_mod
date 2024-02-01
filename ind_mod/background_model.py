@@ -16,7 +16,7 @@ export, __all__ = im.exporter()
 
 @export
 class BackgroundModel():
-    def __init__(self, spectrum_file_folder, model_file,
+    def __init__(self, model_file,
                  energy_min=2., energy_max=6.):
         self.energy_min = energy_min
         self.energy_max = energy_max
@@ -43,8 +43,7 @@ class BackgroundModel():
         total_exposure = sum(list(self.exposures.values()))
         self.background_model = dict()
         for (background_component, scale_factor) in self.config.items('component_scalings'):
-            self.background_model[background_component] = im.Spectrum(spectrum_file_folder=spectrum_file_folder,
-                                                                      component=background_component,
+            self.background_model[background_component] = im.Spectrum(component=background_component,
                                                                       scale_factor=float(scale_factor),
                                                                       exposure_factor=total_exposure,
                                                                       energy_min=self.energy_min,
