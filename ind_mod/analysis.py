@@ -132,24 +132,32 @@ class EnergyBinsHelper():
             else:
                 time_bin_edges.extend(cycle_bins[1:])
 
-            scalings.extend([(self.exposures[annual_cycle] / self.time_bins_per_cycle)] * self.time_bins_per_cycle)
+            scalings.extend([(self.exposures[annual_cycle] / self.time_bins_per_cycle * \
+                              self.energy_bin_width)] * self.time_bins_per_cycle)
 
-        time_bin_edges = time_bin_edges - time_bin_edges[0]
+        t_start_global = self.annual_cycles[list(self.annual_cycles)[0]][0]
+        t_start_global_year = t_start_global.year
+        offset_from = pd.to_datetime(f'{t_start_global_year}-01-01T00:00:00').value * ns_to_days
+        time_bin_edges = np.array(time_bin_edges) - offset_from
 
         scalings = np.tile(scalings, [len(energy_bin_edges) - 1, 1])
 
         return energy_bin_edges, time_bin_edges, scalings
 
     def get_energy_time_hist(self):
-        energy_bin_edges, time_bin_edges, _ = self.get_bins_and_scalings()
+        energy_bin_edges, time_bin_edges, bin_scalings = self.get_bins_and_scalings()
         data_energies = self.data['energy'].values
-        t_start_global = self.annual_cycles[list(self.annual_cycles)[0]][0].value
-        data_times = (self.data['time'].values - t_start_global) * ns_to_days
+
+        t_start_global = self.annual_cycles[list(self.annual_cycles)[0]][0]
+        t_start_global_year = t_start_global.year
+        offset_from = pd.to_datetime(f'{t_start_global_year}-01-01T00:00:00').value
+
+        data_times = (self.data['time'].values - offset_from) * ns_to_days
 
         energy_time_hist = mh.Histdd(data_energies, data_times,
                                      bins=[energy_bin_edges, time_bin_edges])
 
-        return energy_time_hist
+        return energy_time_hist, bin_scalings
 
 
 class ChisqMinimization1D:
@@ -173,12 +181,26 @@ class ChisqMinimization1D:
 
 
 class BinnedPoissonML:
-    def __init__(self, bin_values, scalings):
+    def __init__(self, bin_values, bin_scalings, time_bin_edges):
         self.bin_values = bin_values
-        self.scalings = scalings
+        self.bin_scalings = bin_scalings
+        self.time_bin_centers = 0.5 * (time_bin_edges[1:] + time_bin_edges[:-1])
 
-    def likelihood(self):
-        pass
+        assert np.shape(self.bin_values) == np.shape(self.bin_scalings), \
+            'Shapes of bin_values and bin_scalings must be equal'
+
+    def likelihood_energy_bin(self, time_bin_counts, time_bin_scalings,
+                              phase=152.5, period=365.25):
+        time_bin_phases = 2. * np.pi * (self.time_bin_centers - phase) / period
+
+    def likelihood_energy_bins(self):
+        likelihood_energy_bins = np.zeros(np.shape(self.bin_values)[0])
+
+        for time_bin_counts, time_bin_scalings in zip(self.bin_values, self.bin_scalings):
+            self.likelihood_energy_bin(time_bin_counts, time_bin_scalings)
+
+    def calculate_likelihood(self):
+        return self.likelihood_energy_bins()
 
 
 @export
@@ -238,9 +260,9 @@ class Analysis():
                                        time_bins_per_cycle=time_bins_per_cycle,
                                        energy_min=self.energy_min, energy_max=self.energy_max,
                                        energy_bin_width=energy_bin_width)
-        energy_time_hist = hist_helper.get_energy_time_hist()
+        energy_time_hist, bin_scalings = hist_helper.get_energy_time_hist()
 
-        return energy_time_hist
+        return energy_time_hist, bin_scalings
 
 
     def do_chisq_fit(self, time_bin_centers, residuals, errors,
@@ -250,3 +272,11 @@ class Analysis():
         fit = chisq_min_1d.minimise_chisq(guess=guess).x
 
         return fit
+
+
+    def do_binned_poisson_ML_fit(self, energy_time_hist, bin_scalings):
+        bin_values = energy_time_hist.histogram
+        time_bin_edges = energy_time_hist.bin_edges[1]
+        binned_poisson_ML = BinnedPoissonML(bin_values, bin_scalings, time_bin_edges)
+
+        binned_poisson_ML.calculate_likelihood()
