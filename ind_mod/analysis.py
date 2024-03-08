@@ -102,7 +102,7 @@ class RatesResidualsHelper():
 class EnergyBinsHelper():
     def __init__(self, data,
                  annual_cycles, exposures,
-                 time_bins_per_cycle=10,
+                 time_bins_per_cycle=365,
                  energy_min=2., energy_max=6.,
                  energy_bin_width=0.5
                  ):
@@ -189,18 +189,34 @@ class BinnedPoissonML:
         assert np.shape(self.bin_values) == np.shape(self.bin_scalings), \
             'Shapes of bin_values and bin_scalings must be equal'
 
-    def likelihood_energy_bin(self, time_bin_counts, time_bin_scalings,
+    def nll(self, time_bin_counts, time_bin_scalings,
+                      time_bin_phases, args):
+        mod_param = args[0]
+        const_param = args[1]
+
+        expected_events = (const_param + mod_param * np.cos(time_bin_phases)) * time_bin_scalings
+        nll = np.sum(expected_events - time_bin_counts * np.log(expected_events))
+
+        return nll
+
+    def max_likelihood_energy_bin(self, time_bin_counts, time_bin_scalings,
                               phase=152.5, period=365.25):
         time_bin_phases = 2. * np.pi * (self.time_bin_centers - phase) / period
 
-    def likelihood_energy_bins(self):
-        likelihood_energy_bins = np.zeros(np.shape(self.bin_values)[0])
+        mod_param_guess = 0.
+        const_param_guess = np.mean(time_bin_counts / time_bin_scalings)
+        guess = [mod_param_guess, const_param_guess]
 
+        return minimize(lambda args: self.nll(time_bin_counts, time_bin_scalings,
+                                              time_bin_phases, args), x0=guess, method='Nelder-Mead')
+
+    def do_energy_bin_fits(self):
+        mod_param_fits = []
         for time_bin_counts, time_bin_scalings in zip(self.bin_values, self.bin_scalings):
-            self.likelihood_energy_bin(time_bin_counts, time_bin_scalings)
+            fit = self.max_likelihood_energy_bin(time_bin_counts, time_bin_scalings)
+            mod_param_fits.append(fit.x)
 
-    def calculate_likelihood(self):
-        return self.likelihood_energy_bins()
+        return mod_param_fits
 
 
 @export
@@ -253,7 +269,7 @@ class Analysis():
 
 
     def get_energy_time_hist(self, toy_data,
-                             time_bins_per_cycle=10, energy_bin_width=0.5):
+                             time_bins_per_cycle=365, energy_bin_width=0.5):
         hist_helper = EnergyBinsHelper(data=toy_data,
                                        annual_cycles=self.bg_model.annual_cycles,
                                        exposures=self.bg_model.exposures,
@@ -279,4 +295,4 @@ class Analysis():
         time_bin_edges = energy_time_hist.bin_edges[1]
         binned_poisson_ML = BinnedPoissonML(bin_values, bin_scalings, time_bin_edges)
 
-        binned_poisson_ML.calculate_likelihood()
+        return binned_poisson_ML.do_energy_bin_fits()
