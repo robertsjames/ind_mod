@@ -14,6 +14,7 @@ export, __all__ = im.exporter()
 
 ns_to_months = 1. / 1e9 / 3600. / 24. / (365.25 / 12.)
 ns_to_days = 1. / 1e9 / 3600. / 24.
+months_to_days = 1. / (365.25 / 12.)
 
 class RatesResidualsHelper():
     def __init__(self, data,
@@ -157,7 +158,10 @@ class EnergyBinsHelper():
         energy_time_hist = mh.Histdd(data_energies, data_times,
                                      bins=[energy_bin_edges, time_bin_edges])
 
-        return energy_time_hist, bin_scalings
+        normalised_counts = energy_time_hist.histogram / bin_scalings
+        normalised_errors = np.sqrt(energy_time_hist.histogram) / bin_scalings
+
+        return energy_time_hist, bin_scalings, normalised_counts, normalised_errors
 
 
 class ChisqMinimization1D:
@@ -181,34 +185,30 @@ class ChisqMinimization1D:
 
 
 class BinnedPoissonML:
-    def __init__(self, bin_values, bin_scalings, time_bin_edges):
+    def __init__(self, bin_values, bin_scalings, time_bin_centers,
+                 model_fn, guess_fn):
         self.bin_values = bin_values
         self.bin_scalings = bin_scalings
-        self.time_bin_centers = 0.5 * (time_bin_edges[1:] + time_bin_edges[:-1])
+        self.time_bin_centers = time_bin_centers
+        self.model_fn = model_fn
+        self.guess_fn = guess_fn
 
         assert np.shape(self.bin_values) == np.shape(self.bin_scalings), \
             'Shapes of bin_values and bin_scalings must be equal'
 
-    def nll(self, time_bin_counts, time_bin_scalings,
-                      time_bin_phases, args):
-        mod_param = args[0]
-        const_param = args[1]
+    def nll(self, time_bin_counts, time_bin_scalings, args):
+        expected_events = (self.model_fn(self.time_bin_centers,
+                                         *args)) * time_bin_scalings
 
-        expected_events = (const_param + mod_param * np.cos(time_bin_phases)) * time_bin_scalings
         nll = np.sum(expected_events - time_bin_counts * np.log(expected_events))
 
         return nll
 
-    def max_likelihood_energy_bin(self, time_bin_counts, time_bin_scalings,
-                              phase=152.5, period=365.25):
-        time_bin_phases = 2. * np.pi * (self.time_bin_centers - phase) / period
-
-        mod_param_guess = 0.
-        const_param_guess = np.mean(time_bin_counts / time_bin_scalings)
-        guess = [mod_param_guess, const_param_guess]
+    def max_likelihood_energy_bin(self, time_bin_counts, time_bin_scalings):
+        guess = self.guess_fn(time_bin_counts, time_bin_scalings)
 
         return minimize(lambda args: self.nll(time_bin_counts, time_bin_scalings,
-                                              time_bin_phases, args), x0=guess, method='Nelder-Mead')
+                                              args), x0=guess, method='Nelder-Mead')
 
     def do_energy_bin_fits(self):
         mod_param_fits = []
@@ -276,9 +276,16 @@ class Analysis():
                                        time_bins_per_cycle=time_bins_per_cycle,
                                        energy_min=self.energy_min, energy_max=self.energy_max,
                                        energy_bin_width=energy_bin_width)
-        energy_time_hist, bin_scalings = hist_helper.get_energy_time_hist()
+        energy_time_hist, bin_scalings, normalised_counts, normalised_errors = hist_helper.get_energy_time_hist()
 
-        return energy_time_hist, bin_scalings
+        time_bin_edges = energy_time_hist.bin_edges[1]
+        time_bin_centers = 0.5 * (time_bin_edges[1:] + time_bin_edges[:-1])
+
+        time_bin_edges_relative = (time_bin_edges - time_bin_edges[0]) * months_to_days
+        time_bin_centers_relative = 0.5 * (time_bin_edges_relative[1:] + time_bin_edges_relative[:-1])
+
+        return energy_time_hist, bin_scalings, time_bin_centers, \
+            time_bin_centers_relative, normalised_counts, normalised_errors
 
 
     def do_chisq_fit(self, time_bin_centers, residuals, errors,
@@ -290,9 +297,11 @@ class Analysis():
         return fit
 
 
-    def do_binned_poisson_ML_fit(self, energy_time_hist, bin_scalings):
+    def do_binned_poisson_ML_fit(self, energy_time_hist, bin_scalings, time_bin_centers,
+                                 model_fn, guess_fn):
         bin_values = energy_time_hist.histogram
-        time_bin_edges = energy_time_hist.bin_edges[1]
-        binned_poisson_ML = BinnedPoissonML(bin_values, bin_scalings, time_bin_edges)
+
+        binned_poisson_ML = BinnedPoissonML(bin_values, bin_scalings, time_bin_centers,
+                                            model_fn, guess_fn)
 
         return binned_poisson_ML.do_energy_bin_fits()
