@@ -54,8 +54,14 @@ class Spectrum():
         sigma_energies_sample = 0.488 * np.sqrt(energies_sample) + 0.0091 * energies_sample
         energies_sample_smear = np.array([stats.norm.rvs(loc=energies_sample, scale=sigma_energies_sample)])
 
+
         energies_sample_smear = energies_sample_smear[np.where(energies_sample_smear >= self.energy_min)]
         energies_sample_smear = energies_sample_smear[np.where(energies_sample_smear <= self.energy_max)]
+
+        efficiencies = 0.0429 * energies_sample_smear + 0.657
+        efficiencies = np.where(efficiencies > 1., 1., efficiencies)
+        keep = np.random.rand(len(energies_sample_smear)) < efficiencies
+        energies_sample_smear = energies_sample_smear[keep]
 
         df_sample = pd.DataFrame(dict(zip(['energy'], [energies_sample_smear])))
         

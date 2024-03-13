@@ -141,9 +141,15 @@ class EnergyBinsHelper():
         offset_from = pd.to_datetime(f'{t_start_global_year}-01-01T00:00:00').value * ns_to_days
         time_bin_edges = np.array(time_bin_edges) - offset_from
 
-        scalings = np.tile(scalings, [len(energy_bin_edges) - 1, 1])
+        scalings_all = []
+        energy_bin_centers = 0.5 * (energy_bin_edges[1:] + energy_bin_edges[:-1])
+        for energy_bin_center in energy_bin_centers:
+            efficiency = 0.0429 * energy_bin_center + 0.657
+            if efficiency > 1.:
+                efficiency = 1.
+            scalings_all.append(np.array(scalings) * efficiency)
 
-        return energy_bin_edges, time_bin_edges, scalings
+        return energy_bin_edges, time_bin_edges, scalings_all
 
     def get_energy_time_hist(self):
         energy_bin_edges, time_bin_edges, bin_scalings = self.get_bins_and_scalings()
