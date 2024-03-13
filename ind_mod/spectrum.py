@@ -18,7 +18,7 @@ export, __all__ = im.exporter()
 @export
 class Spectrum():
     def __init__(self, component,
-                 root_type=True, mode='Veto50keV', variable='CrystalEnergy0-20',
+                 root_type=True, mode='CrystalSignal', variable='CrystalEnergy0-20',
                  scale_factor=1., exposure_factor=1.,
                  energy_min=2., energy_max=6.):
         self.energy_min = energy_min
