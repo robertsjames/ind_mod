@@ -235,8 +235,8 @@ class Analysis():
                                            energy_min=self.energy_min, energy_max=self.energy_max)
 
 
-    def get_toy_data(self):
-        toy_data = self.bg_model.sample_model()
+    def get_toy_data(self, add_mod_component=False):
+        toy_data = self.bg_model.sample_model(add_mod_component=add_mod_component)
 
         return toy_data
 

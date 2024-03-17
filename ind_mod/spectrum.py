@@ -43,25 +43,39 @@ class Spectrum():
 
         return mu
 
-    def sample(self, decay_factor=1.):
-        sliced_hist = self.hist.slice(start=(0.5 * self.energy_min), stop=(2. * self.energy_max)) * decay_factor
+    def sample(self, decay_factor=1.,
+               flat_spectrum=False, num_events=None):
+        if flat_spectrum:
+            energy_edges = np.linspace(self.energy_min, self.energy_max)
+            sliced_hist = mh.Histdd.from_histogram(histogram=np.ones(len(energy_edges) - 1),
+                                                   bin_edges=[energy_edges])
+        else:
+            sliced_hist = self.hist.slice(start=(0.5 * self.energy_min), stop=(2. * self.energy_max)) * decay_factor
 
-        mu = self.get_mu(decay_factor=decay_factor)
+        if num_events is not None:
+            mu = num_events
+        else:
+            mu = self.get_mu(decay_factor=decay_factor)
         n_sample = np.random.poisson(mu)
 
-        energies_sample = sliced_hist.get_random(n_sample)[:, 0]
+        if n_sample == 0:
+            energies_sample = np.array([])
+        else:
+            energies_sample = sliced_hist.get_random(n_sample)[:, 0]
 
-        sigma_energies_sample = 0.488 * np.sqrt(energies_sample) + 0.0091 * energies_sample
-        energies_sample_smear = np.array([stats.norm.rvs(loc=energies_sample, scale=sigma_energies_sample)])
+        if not flat_spectrum:
+            sigma_energies_sample = 0.488 * np.sqrt(energies_sample) + 0.0091 * energies_sample
+            energies_sample_smear = np.array([stats.norm.rvs(loc=energies_sample, scale=sigma_energies_sample)])
 
+            energies_sample_smear = energies_sample_smear[np.where(energies_sample_smear >= self.energy_min)]
+            energies_sample_smear = energies_sample_smear[np.where(energies_sample_smear <= self.energy_max)]
 
-        energies_sample_smear = energies_sample_smear[np.where(energies_sample_smear >= self.energy_min)]
-        energies_sample_smear = energies_sample_smear[np.where(energies_sample_smear <= self.energy_max)]
-
-        efficiencies = 0.0429 * energies_sample_smear + 0.657
-        efficiencies = np.where(efficiencies > 1., 1., efficiencies)
-        keep = np.random.rand(len(energies_sample_smear)) < efficiencies
-        energies_sample_smear = energies_sample_smear[keep]
+            efficiencies = 0.0429 * energies_sample_smear + 0.657
+            efficiencies = np.where(efficiencies > 1., 1., efficiencies)
+            keep = np.random.rand(len(energies_sample_smear)) < efficiencies
+            energies_sample_smear = energies_sample_smear[keep]
+        else:
+            energies_sample_smear = energies_sample
 
         df_sample = pd.DataFrame(dict(zip(['energy'], [energies_sample_smear])))
         
