@@ -35,7 +35,7 @@ class RatesResidualsHelper():
                        self.annual_cycles[annual_cycle][1].value * ns_to_months)
 
         energy_bins= np.arange(self.energy_min, self.energy_max + self.energy_bin_width,
-                                     self.energy_bin_width)
+                               self.energy_bin_width)
         time_bins = np.linspace(cycle_edges[0], cycle_edges[1], self.bins_per_cycle + 1)
 
         data_this_cycle = self.data[self.data['annual_cycle'] == annual_cycle]
@@ -44,7 +44,7 @@ class RatesResidualsHelper():
         times = data_this_cycle['time'].values * ns_to_months
 
         rates_this_cycle = mh.Histdd(energies, times,
-                         bins=[energy_bins, time_bins])
+                                     bins=[energy_bins, time_bins])
 
         energy_bin_centers = 0.5 * (energy_bins[1:] + energy_bins[:-1])
         if annual_cycle in ['cycle1', 'cycle2', 'cycle3', 'cycle4', 'cycle5', 'cycle6', 'cycle7']:
