@@ -20,25 +20,43 @@ class RatesResidualsHelper():
     def __init__(self, data,
                  annual_cycles, exposures,
                  bins_per_cycle=10,
-                 energy_min=2., energy_max=6.):
+                 energy_min=2., energy_max=6.,
+                 energy_bin_width=0.5):
         self.data = data
         self.annual_cycles = annual_cycles
         self.exposures = exposures
         self.bins_per_cycle = bins_per_cycle
         self.energy_min = energy_min
         self.energy_max = energy_max
+        self.energy_bin_width = energy_bin_width
 
     def rate_calc_for_cycle(self, annual_cycle):
-
         cycle_edges = (self.annual_cycles[annual_cycle][0].value * ns_to_months,
                        self.annual_cycles[annual_cycle][1].value * ns_to_months)
 
+        energy_bins= np.arange(self.energy_min, self.energy_max + self.energy_bin_width,
+                                     self.energy_bin_width)
+        time_bins = np.linspace(cycle_edges[0], cycle_edges[1], self.bins_per_cycle + 1)
+
         data_this_cycle = self.data[self.data['annual_cycle'] == annual_cycle]
 
+        energies = data_this_cycle['energy'].values
         times = data_this_cycle['time'].values * ns_to_months
 
-        rates_this_cycle = mh.Hist1d(times, bins=self.bins_per_cycle)
-        time_bins = rates_this_cycle.bin_edges
+        rates_this_cycle = mh.Histdd(energies, times,
+                         bins=[energy_bins, time_bins])
+
+        energy_bin_centers = 0.5 * (energy_bins[1:] + energy_bins[:-1])
+        if annual_cycle in ['cycle1', 'cycle2', 'cycle3', 'cycle4', 'cycle5', 'cycle6', 'cycle7']:
+            effs = 0.99627132 * (1. - np.exp(-0.31979043 * energy_bin_centers))
+        else:
+            effs = 0.99996867 * (1. - np.exp(-0.3508406 * energy_bin_centers)) + \
+                0.95099476 * np.exp(-0.79595927 * energy_bin_centers)
+        effs_normalisation = np.transpose([effs for i in range(np.shape(rates_this_cycle.histogram)[1])])
+
+        rates_this_cycle.histogram  = rates_this_cycle.histogram / effs_normalisation
+
+        rates_this_cycle = rates_this_cycle.projection(axis=1)
 
         rate_normalisation = (self.exposures[annual_cycle] / self.bins_per_cycle) * \
             (self.energy_max - self.energy_min)
@@ -120,9 +138,10 @@ class EnergyBinsHelper():
                                      self.energy_bin_width)
         time_bin_edges = []
         scalings = []
+        phases = []
 
         first_annual_cycle = True
-        for annual_cycle in self.annual_cycles.keys():
+        for annual_cycle in self.annual_cycles:
             cycle_bins = np.linspace(self.annual_cycles[annual_cycle][0].value * ns_to_days,
                                      self.annual_cycles[annual_cycle][1].value * ns_to_days,
                                      self.time_bins_per_cycle + 1)
@@ -136,18 +155,31 @@ class EnergyBinsHelper():
             scalings.extend([(self.exposures[annual_cycle] / self.time_bins_per_cycle * \
                               self.energy_bin_width)] * self.time_bins_per_cycle)
 
+            if annual_cycle in ['cycle1', 'cycle2', 'cycle3', 'cycle4', 'cycle5', 'cycle6', 'cycle7']:
+                phase = 'phase1'
+            else:
+                phase = 'phase2'
+            phases.extend([phase] * self.time_bins_per_cycle)
+
         t_start_global = self.annual_cycles[list(self.annual_cycles)[0]][0]
         t_start_global_year = t_start_global.year
         offset_from = pd.to_datetime(f'{t_start_global_year}-01-01T00:00:00').value * ns_to_days
         time_bin_edges = np.array(time_bin_edges) - offset_from
 
-        scalings_all = []
         energy_bin_centers = 0.5 * (energy_bin_edges[1:] + energy_bin_edges[:-1])
-        for energy_bin_center in energy_bin_centers:
-            efficiency = 0.0429 * energy_bin_center + 0.657
-            if efficiency > 1.:
-                efficiency = 1.
-            scalings_all.append(np.array(scalings) * efficiency)
+
+        phase_1_effs = 0.99627132 * (1. - np.exp(-0.31979043 * energy_bin_centers))
+        phase_2_effs = 0.99996867 * (1. - np.exp(-0.3508406 * energy_bin_centers)) + \
+            0.95099476 * np.exp(-0.79595927 * energy_bin_centers)
+
+        phase_1_effs_repeat = [phase_1_effs for i in range(phases.count('phase1'))]
+        phase_2_effs_repeat = [phase_2_effs for i in range(phases.count('phase2'))]
+
+        all_effs = np.transpose(np.concatenate((phase_1_effs_repeat, phase_2_effs_repeat)))
+
+        scalings_all = []
+        for row in all_effs:
+            scalings_all.append(np.array(scalings) * row)
 
         return energy_bin_edges, time_bin_edges, scalings_all
 
@@ -241,24 +273,28 @@ class Analysis():
         return toy_data
 
 
-    def get_rates_and_residuals(self, toy_data, bins_per_cycle=10):
+    def get_rates_and_residuals(self, toy_data, bins_per_cycle=10,
+                                energy_bin_width=0.5):
         hist_helper = RatesResidualsHelper(data=toy_data,
                                            annual_cycles=self.bg_model.annual_cycles,
                                            exposures=self.bg_model.exposures,
                                            bins_per_cycle=bins_per_cycle,
-                                           energy_min=self.energy_min, energy_max=self.energy_max)
+                                           energy_min=self.energy_min, energy_max=self.energy_max,
+                                           energy_bin_width=energy_bin_width)
         rate_hist, residuals, errors = hist_helper.get_rates_and_residuals()
         time_bin_edges = rate_hist.bin_edges
         time_bin_centers = 0.5 * (time_bin_edges[1:] + time_bin_edges[:-1])
 
         return rate_hist, time_bin_centers, residuals, errors
 
-    def get_cycles_and_average_rates(self, toy_data, bins_per_cycle=10):
+    def get_cycles_and_average_rates(self, toy_data, bins_per_cycle=10,
+                                     energy_bin_width=0.5):
         hist_helper = RatesResidualsHelper(data=toy_data,
                                            annual_cycles=self.bg_model.annual_cycles,
                                            exposures=self.bg_model.exposures,
                                            bins_per_cycle=bins_per_cycle,
-                                           energy_min=self.energy_min, energy_max=self.energy_max)
+                                           energy_min=self.energy_min, energy_max=self.energy_max,
+                                           energy_bin_width=energy_bin_width)
         cycle_endpoints, average_rates = hist_helper.get_cycles_and_average_rates()
 
         return cycle_endpoints, average_rates

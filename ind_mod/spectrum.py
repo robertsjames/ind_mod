@@ -36,8 +36,7 @@ class Spectrum():
 
         self.hist = mh.Histdd.from_histogram(histogram=spectrum_values, bin_edges=[self.energy_edges])
 
-    def get_mu(self, decay_factor=1.):
-        sliced_hist = self.hist.slice(start=(0.5 * self.energy_min), stop=(2. * self.energy_max)) * decay_factor
+    def get_mu(self, sliced_hist):
         sliced_hist_ebp = sliced_hist * sliced_hist.bin_volumes()
         mu = sliced_hist_ebp.n
 
@@ -55,7 +54,7 @@ class Spectrum():
         if num_events is not None:
             mu = num_events
         else:
-            mu = self.get_mu(decay_factor=decay_factor)
+            mu = self.get_mu(sliced_hist)
         n_sample = np.random.poisson(mu)
 
         if n_sample == 0:
@@ -69,11 +68,6 @@ class Spectrum():
 
             energies_sample_smear = energies_sample_smear[np.where(energies_sample_smear >= self.energy_min)]
             energies_sample_smear = energies_sample_smear[np.where(energies_sample_smear <= self.energy_max)]
-
-            efficiencies = 0.0429 * energies_sample_smear + 0.657
-            efficiencies = np.where(efficiencies > 1., 1., efficiencies)
-            keep = np.random.rand(len(energies_sample_smear)) < efficiencies
-            energies_sample_smear = energies_sample_smear[keep]
         else:
             energies_sample_smear = energies_sample
 

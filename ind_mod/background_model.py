@@ -94,6 +94,7 @@ class BackgroundModel():
 
         times_sample = []
         annual_cycles = []
+        phases = []
         for cycle, times in self.annual_cycles.items():
             n_sample_cycle = len(cycles_sample[cycles_sample == cycle])
 
@@ -111,9 +112,30 @@ class BackgroundModel():
 
             times_sample.extend(sampled_times)
             annual_cycles.extend([cycle] * len(sampled_times))
+            if cycle in ['cycle1', 'cycle2', 'cycle3', 'cycle4', 'cycle5', 'cycle6', 'cycle7']:
+                phases.extend(['phase1'] * len(sampled_times))
+            else:
+                phases.extend(['phase2'] * len(sampled_times))
 
         df_sample['time'] = times_sample
         df_sample['annual_cycle'] = annual_cycles
+        df_sample['phase'] = phases
+
+        if not modulate:
+            phase1_energies = df_sample[df_sample['phase'] == 'phase1']['energy'].values
+            phase2_energies = df_sample[df_sample['phase'] == 'phase2']['energy'].values
+
+            phase1_effs =  0.99627132 * (1. - np.exp(-0.31979043 * phase1_energies))
+            phase2_effs = 0.99996867 * (1. - np.exp(-0.3508406 * phase2_energies)) + \
+                0.95099476 * np.exp(-0.79595927 * phase2_energies)
+
+            effs = np.concatenate((np.array(phase1_effs), np.array(phase2_effs)))
+            effs = np.where(effs > 1., 1., effs)
+
+            keep = np.random.rand(len(phase1_energies) + len(phase2_energies)) < effs
+
+            df_sample = df_sample[keep]
+            df_sample = df_sample.reset_index(drop=True)
 
         return df_sample
 
