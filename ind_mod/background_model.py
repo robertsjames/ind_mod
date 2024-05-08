@@ -67,7 +67,7 @@ class BackgroundModel():
         return t_start_global, time_constant_ns, decay_factor
 
     def sample_component(self, component_name=None, modulate=False,
-                         mod_amplitude=0.04, mod_period_days=365, mod_phase_days=152.5,
+                         mod_amplitude=0.028, mod_period_days=365, mod_phase_days=152.5,
                          mod_component_events=int(1e6)):
         try:
             if modulate:
