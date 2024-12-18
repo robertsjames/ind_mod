@@ -331,12 +331,15 @@ class Analysis():
 
 
     def do_chisq_fit(self, time_bin_centers, residuals, errors,
-                     model_fn, guess):
+                     model_fn, guess, return_chisq=False):
         chisq_min_1d = ChisqMinimization1D(time_bin_centers, residuals, errors, model_fn)
 
         fit = chisq_min_1d.minimise_chisq(guess=guess).x
 
-        return fit
+        if return_chisq:
+            return fit, chisq_min_1d.chisq(fit)
+        else:
+            return fit
 
 
     def do_binned_poisson_ML_fit(self, energy_time_hist, bin_scalings, time_bin_centers,
